@@ -43,3 +43,7 @@ __pycache__/
 # Misc
 # =========================
 coverage/
+
+
+*.pt
+backend/static/audio/
