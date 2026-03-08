@@ -362,11 +362,12 @@
 // }
 
 
+
 "use client";
 import { useState, useEffect, useRef } from "react";
 import {
   Feather, Send, Loader2, History, Plus,
-  MessageSquare, Copy, Volume2, Info, Check,
+  MessageSquare, Copy, Volume2, Info, Check, Zap,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -375,13 +376,19 @@ interface PoemEntry {
   id: number;
   word: string;
   maithili: string;
-  poem: string;
+  poems: {
+    nano?: string;
+    gemma?: string;
+    nano_error?: string;
+    gemma_error?: string;
+  };
   cultural_note: string;
   audio_url: string;
+  selected_model: "nano" | "gemma" | null;
 }
 
 // ─── small helpers ────────────────────────────────────────────────────────────
-const STORAGE_KEY = "maithili-vault";
+const STORAGE_KEY = "maithili-vault-dual";
 
 function loadHistory(): PoemEntry[] {
   try {
@@ -403,20 +410,34 @@ export default function Home() {
   const [error, setError]             = useState<string | null>(null);
   const [history, setHistory]         = useState<PoemEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [copied, setCopied]           = useState(false);
+  const [copiedModel, setCopiedModel] = useState<string | null>(null);
   const audioRef                      = useRef<HTMLAudioElement | null>(null);
 
-  // Hydrate history from localStorage after mount (avoids SSR mismatch)
+  // Hydrate history from localStorage after mount
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
 
   const pushToHistory = (entry: PoemEntry) => {
     setHistory((prev) => {
-      const next = [entry, ...prev].slice(0, 50); // cap at 50
+      const next = [entry, ...prev].slice(0, 50);
       saveHistory(next);
       return next;
     });
+  };
+
+  const updateHistorySelection = (id: number, model: "nano" | "gemma") => {
+    setHistory((prev) => {
+      const updated = prev.map((item) =>
+        item.id === id ? { ...item, selected_model: model } : item
+      );
+      saveHistory(updated);
+      return updated;
+    });
+
+    if (result && result.id === id) {
+      setResult((prev) => prev ? { ...prev, selected_model: model } : null);
+    }
   };
 
   const generatePoem = async () => {
@@ -427,10 +448,13 @@ export default function Home() {
     setError(null);
 
     try {
-      const res  = await fetch(`${API_BASE}/generate`, {
-        method:  "POST",
+      const res = await fetch(`${API_BASE}/generate`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ word: trimmed }),
+        body: JSON.stringify({
+          word: trimmed,
+          models: ["nano", "gemma"],  // Request both models
+        }),
       });
 
       if (!res.ok) {
@@ -439,16 +463,16 @@ export default function Home() {
       }
 
       const data = await res.json();
-
       if (data.error) throw new Error(data.error);
 
       const entry: PoemEntry = {
-        id:           Date.now(),
-        word:         trimmed,
-        maithili:     data.maithili_input,
-        poem:         data.poem,
+        id: Date.now(),
+        word: trimmed,
+        maithili: data.maithili_input,
+        poems: data.responses,
         cultural_note: data.cultural_note ?? "",
-        audio_url:    data.audio_url,
+        audio_url: data.audio_url,
+        selected_model: null,
       };
 
       setResult(entry);
@@ -469,10 +493,12 @@ export default function Home() {
     audioRef.current.play();
   };
 
-  const copyPoem = async (text: string) => {
+  const copyPoem = async (text: string, model?: string) => {
     await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (model) {
+      setCopiedModel(model);
+      setTimeout(() => setCopiedModel(null), 2000);
+    }
   };
 
   const startNew = () => {
@@ -516,7 +542,14 @@ export default function Home() {
               }`}
             >
               <MessageSquare size={16} className="opacity-40 flex-shrink-0" />
-              <span className="truncate">{item.word}</span>
+              <div className="flex-1 min-w-0">
+                <span className="truncate block">{item.word}</span>
+                {item.selected_model && (
+                  <span className="text-[10px] text-gray-400">
+                    ✓ {item.selected_model}
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </div>
@@ -534,45 +567,132 @@ export default function Home() {
         </button>
 
         {/* ── Content area ── */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 pt-20">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 pt-20 overflow-y-auto">
           {error && (
-            <div className="w-full max-w-2xl mb-4 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-2xl text-sm">
+            <div className="w-full max-w-4xl mb-4 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-2xl text-sm">
               ⚠️ {error}
             </div>
           )}
 
           {result ? (
-            <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <div className="w-full max-w-5xl animate-in fade-in slide-in-from-bottom-6 duration-700">
               <div className="bg-white p-10 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-black/5 relative overflow-hidden">
                 {/* Red left accent bar */}
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-[#8B2622]" />
 
+                {/* Header */}
                 <div className="flex justify-between items-start mb-8">
                   <span className="bg-[#8B2622]/10 text-[#8B2622] px-4 py-1 rounded-full text-xs font-bold uppercase tracking-tighter">
                     Keyword: {result.maithili}
                   </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => playAudio(result.audio_url)}
-                      className="p-2 hover:bg-gray-100 rounded-full text-[#8B2622] transition"
-                      title="Listen"
-                    >
-                      <Volume2 size={20} />
-                    </button>
-                    <button
-                      onClick={() => copyPoem(result.poem)}
-                      className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition"
-                      title="Copy poem"
-                    >
-                      {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => playAudio(result.audio_url)}
+                    className="p-2 hover:bg-gray-100 rounded-full text-[#8B2622] transition"
+                    title="Listen"
+                  >
+                    <Volume2 size={20} />
+                  </button>
                 </div>
 
-                {/* Poem */}
-                <p className="text-2xl leading-[1.9] text-[#2D2A26] font-serif italic mb-8 whitespace-pre-line">
-                  {result.poem}
-                </p>
+                {/* Dual Model Display */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                  {/* MaithiliNano Poem */}
+                  {result.poems.nano && (
+                    <div
+                      className={`p-6 rounded-xl border-2 transition cursor-pointer ${
+                        result.selected_model === "nano"
+                          ? "border-[#8B2622] bg-[#8B2622]/5 ring-2 ring-[#8B2622]/20"
+                          : "border-gray-200 hover:border-[#8B2622]"
+                      }`}
+                      onClick={() => {
+                        updateHistorySelection(result.id, "nano");
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-[#8B2622] flex items-center gap-2">
+                          <Zap size={16} />
+                          MaithiliNano
+                        </h3>
+                        {result.selected_model === "nano" && (
+                          <Check size={20} className="text-[#8B2622]" />
+                        )}
+                      </div>
+                      <p className="text-base leading-[1.8] text-[#2D2A26] font-serif italic whitespace-pre-line mb-4 min-h-[150px]">
+                        {result.poems.nano}
+                      </p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyPoem(result.poems.nano!, "nano");
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition"
+                        title="Copy poem"
+                      >
+                        {copiedModel === "nano" ? (
+                          <Check size={20} className="text-green-500" />
+                        ) : (
+                          <Copy size={20} />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Gemma 2B Poem */}
+                  {result.poems.gemma && (
+                    <div
+                      className={`p-6 rounded-xl border-2 transition cursor-pointer ${
+                        result.selected_model === "gemma"
+                          ? "border-[#8B2622] bg-[#8B2622]/5 ring-2 ring-[#8B2622]/20"
+                          : "border-gray-200 hover:border-[#8B2622]"
+                      }`}
+                      onClick={() => {
+                        updateHistorySelection(result.id, "gemma");
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-[#8B2622] flex items-center gap-2">
+                          <Zap size={16} />
+                          Gemma 2B
+                        </h3>
+                        {result.selected_model === "gemma" && (
+                          <Check size={20} className="text-[#8B2622]" />
+                        )}
+                      </div>
+                      <p className="text-base leading-[1.8] text-[#2D2A26] font-serif italic whitespace-pre-line mb-4 min-h-[150px]">
+                        {result.poems.gemma}
+                      </p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyPoem(result.poems.gemma!, "gemma");
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition"
+                        title="Copy poem"
+                      >
+                        {copiedModel === "gemma" ? (
+                          <Check size={20} className="text-green-500" />
+                        ) : (
+                          <Copy size={20} />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Error states */}
+                  {result.poems.nano_error && !result.poems.nano && (
+                    <div className="p-6 rounded-xl border-2 border-red-200 bg-red-50">
+                      <h3 className="font-bold text-red-700 mb-2">MaithiliNano Error</h3>
+                      <p className="text-sm text-red-600">{result.poems.nano_error}</p>
+                    </div>
+                  )}
+
+                  {result.poems.gemma_error && !result.poems.gemma && (
+                    <div className="p-6 rounded-xl border-2 border-red-200 bg-red-50">
+                      <h3 className="font-bold text-red-700 mb-2">Gemma 2B Error</h3>
+                      <p className="text-sm text-red-600">{result.poems.gemma_error}</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Cultural note */}
                 {result.cultural_note && (
@@ -591,7 +711,7 @@ export default function Home() {
               <div className="text-center space-y-6 opacity-40">
                 <Feather size={60} className="mx-auto text-[#8B2622]" />
                 <h2 className="text-2xl font-serif">Maithili Nano Poet</h2>
-                <p className="text-sm">Type any word below to generate a cultural poem.</p>
+                <p className="text-sm">Type any word below to generate poems from both models.</p>
               </div>
             )
           )}
@@ -599,13 +719,13 @@ export default function Home() {
           {loading && (
             <div className="flex flex-col items-center gap-4 opacity-60">
               <Loader2 size={40} className="animate-spin text-[#8B2622]" />
-              <p className="text-sm font-medium">Composing your poem…</p>
+              <p className="text-sm font-medium">Composing poems…</p>
             </div>
           )}
         </div>
 
         {/* ── Input bar ── */}
-        <div className="max-w-3xl w-full mx-auto p-8 pt-0">
+        <div className="max-w-4xl w-full mx-auto p-8 pt-0">
           <div className="relative flex items-center bg-white rounded-[1.5rem] shadow-xl border border-black/5 p-2 pr-3">
             <input
               type="text"
@@ -627,7 +747,7 @@ export default function Home() {
             </button>
           </div>
           <p className="text-[10px] text-center mt-4 text-gray-400 uppercase tracking-widest font-bold">
-            Powered by Deep-Translator &amp; MaithiliNano
+            Powered by MaithiliNano &amp; Gemma 2B
           </p>
         </div>
       </main>

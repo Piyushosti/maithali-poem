@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-torch
-tokenizers
-ai4bharat-transliteration
