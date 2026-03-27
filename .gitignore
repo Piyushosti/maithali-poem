@@ -47,3 +47,7 @@ coverage/
 
 *.pt
 backend/static/audio/
+
+
+echo "docker-compose.override.yml" >> .gitignore
+

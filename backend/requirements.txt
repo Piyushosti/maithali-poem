@@ -1,14 +1,8 @@
-fastapi
-uvicorn
-torch
-tokenizers
-ai4bharat-transliteration
-
 fastapi==0.109.0
 uvicorn==0.27.0
 torch==2.1.2
-transformers==4.36.2
-tokenizers==0.14.1
+transformers==4.45.0
+tokenizers==0.20.0
 deep-translator==1.11.4
 gtts==2.4.0
 python-multipart==0.0.6
@@ -17,3 +11,4 @@ numpy==1.24.3
 scipy==1.11.4
 pydantic-core==2.14.5
 pydantic-settings==2.1.0
+peft==0.7.1
