@@ -1,8 +1,22 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Maithili Nano Poet - Frontend
+
+This is the frontend for the Maithili Nano Poet application, built with Next.js, React, and Tailwind CSS.
+
+It provides the user interface for interacting with the AI poetry generation backend.
+
+## Features
+
+-   Dual-pane view to compare poems from two different AI models.
+-   Chat-style input for generating new poems.
+-   History panel to revisit previously generated poems (persisted in `localStorage`).
+-   Audio playback for generated poems.
+-   Display for cultural notes related to the poem's theme.
 
 ## Getting Started
 
-First, run the development server:
+First, ensure the backend server is running.
+
+Then, run the development server:
 
 ```bash
 npm run dev
@@ -10,8 +24,6 @@ npm run dev
 yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

@@ -1,0 +1,4 @@
+services:
+  backend:
+    environment:
+      - HF_TOKEN=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
